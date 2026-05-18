@@ -1,0 +1,13 @@
+services:
+  mcp-auth-proxy:
+    build: .
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      - LISTEN=:${APP_PORT}
+    command: "${MCP_TARGET}"
+

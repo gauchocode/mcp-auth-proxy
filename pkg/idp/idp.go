@@ -375,13 +375,25 @@ func (a *IDPRouter) handleRegister(c *gin.Context) {
 		}
 	}
 
+	requestedScopes := strings.Fields(req.Scope)
+	defaultScopes := []string{"openid", "profile", "email"}
+	scopeSet := make(map[string]struct{})
+	for _, s := range requestedScopes {
+		scopeSet[s] = struct{}{}
+	}
+	for _, s := range defaultScopes {
+		if _, exists := scopeSet[s]; !exists {
+			requestedScopes = append(requestedScopes, s)
+		}
+	}
+
 	client := &fosite.DefaultClient{
 		ID:            clientID,
 		Secret:        hashedSecret,
 		RedirectURIs:  req.RedirectURIs,
 		GrantTypes:    req.GrantTypes,
 		ResponseTypes: req.ResponseTypes,
-		Scopes:        strings.Fields(req.Scope),
+		Scopes:        requestedScopes,
 		Audience:      []string{a.externalURL},
 		Public:        isPublic,
 	}
@@ -454,7 +466,7 @@ func (a *IDPRouter) handleOauthAuthorizationServer(c *gin.Context) {
 		AuthorizationEndpoint:             authorizationEndpoint,
 		TokenEndpoint:                     tokenEndpoint,
 		RegistrationEndpoint:              registrationEndpoint,
-		ScopesSupported:                   []string{},
+		ScopesSupported:                   []string{"openid", "profile", "email"},
 		ResponseTypesSupported:            []string{"code"},
 		ResponseModesSupported:            []string{"query"},
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},

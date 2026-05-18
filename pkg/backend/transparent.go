@@ -10,6 +10,8 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"path"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -127,7 +129,24 @@ func (p *TransparentBackend) Run(ctx context.Context) (http.Handler, error) {
 		},
 		FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(p.url)
+			pr.Out.URL.Scheme = p.url.Scheme
+			pr.Out.URL.Host = p.url.Host
+			pr.Out.Host = ""
+
+			// If the inbound path is deeper than the target path's parent
+			// directory (e.g. an SSE session path like /mcp/abc123?sessionId=...),
+			// pass it through unchanged so SSE message posting reaches the
+			// correct session endpoint on the backend. Otherwise, rewrite to
+			// the configured target path so that a base request (e.g. /mcp)
+			// reaches the correct backend endpoint.
+			basePath := path.Dir(p.url.Path)
+			if basePath != "/" && strings.HasPrefix(pr.In.URL.Path, basePath+"/") {
+				// SSE session path — keep inbound path as-is
+			} else {
+				pr.Out.URL.Path = p.url.Path
+				pr.Out.URL.RawPath = p.url.RawPath
+			}
+
 			if p.isTrusted(pr.In.RemoteAddr) {
 				pr.Out.Header["X-Forwarded-For"] = pr.In.Header["X-Forwarded-For"]
 			}
